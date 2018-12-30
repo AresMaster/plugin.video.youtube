@@ -1,7 +1,16 @@
-__author__ = 'bromix'
+# -*- coding: utf-8 -*-
+"""
+
+    Copyright (C) 2014-2016 bromix (plugin.video.youtube)
+    Copyright (C) 2016-2018 plugin.video.youtube
+
+    SPDX-License-Identifier: GPL-2.0-only
+    See LICENSES/GPL-2.0-only for more information.
+"""
+
+from six.moves import urllib
 
 import re
-import urlparse
 from ...kodion.items import VideoItem, DirectoryItem
 from . import utils
 
@@ -24,9 +33,9 @@ class UrlToItemConverter(object):
         self._channel_ids = []
 
     def add_url(self, url, provider, context):
-        url_components = urlparse.urlparse(url)
+        url_components = urllib.parse.urlparse(url)
         if url_components.hostname.lower() == 'youtube.com' or url_components.hostname.lower() == 'www.youtube.com':
-            params = dict(urlparse.parse_qsl(url_components.query))
+            params = dict(urllib.parse.parse_qsl(url_components.query))
             if url_components.path.lower() == '/watch':
                 video_id = params.get('v', '')
                 if video_id:
@@ -74,7 +83,7 @@ class UrlToItemConverter(object):
             # remove duplicates
             self._channel_ids = list(set(self._channel_ids))
 
-            channels_item = DirectoryItem('[B]' + context.localize(provider.LOCAL_MAP['youtube.channels']) + '[/B]',
+            channels_item = DirectoryItem(context.get_ui().bold(context.localize(provider.LOCAL_MAP['youtube.channels'])),
                                           context.create_uri(['special', 'description_links'],
                                                              {'channel_ids': ','.join(self._channel_ids)}),
                                           context.create_resource_path('media', 'playlist.png'))
@@ -85,7 +94,7 @@ class UrlToItemConverter(object):
             # remove duplicates
             self._playlist_ids = list(set(self._playlist_ids))
 
-            playlists_item = DirectoryItem('[B]' + context.localize(provider.LOCAL_MAP['youtube.playlists']) + '[/B]',
+            playlists_item = DirectoryItem(context.get_ui().bold(context.localize(provider.LOCAL_MAP['youtube.playlists'])),
                                            context.create_uri(['special', 'description_links'],
                                                               {'playlist_ids': ','.join(self._playlist_ids)}),
                                            context.create_resource_path('media', 'playlist.png'))
@@ -104,9 +113,12 @@ class UrlToItemConverter(object):
         return result
 
     def get_video_items(self, provider, context):
+        incognito = str(context.get_param('incognito', False)).lower() == 'true'
+        use_play_data = not incognito
+
         if len(self._video_items) == 0:
             channel_id_dict = {}
-            utils.update_video_infos(provider, context, self._video_id_dict, None, channel_id_dict)
+            utils.update_video_infos(provider, context, self._video_id_dict, None, channel_id_dict, use_play_data=use_play_data)
             utils.update_fanarts(provider, context, channel_id_dict)
 
             for key in self._video_id_dict:

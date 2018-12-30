@@ -1,9 +1,20 @@
-import sys
-import urllib
-import urlparse
-import weakref
+# -*- coding: utf-8 -*-
+"""
+
+    Copyright (C) 2014-2016 bromix (plugin.video.youtube)
+    Copyright (C) 2016-2018 plugin.video.youtube
+
+    SPDX-License-Identifier: GPL-2.0-only
+    See LICENSES/GPL-2.0-only for more information.
+"""
+
+from six.moves import urllib
+
 import datetime
 import json
+import os
+import sys
+import weakref
 
 import xbmc
 import xbmcaddon
@@ -13,22 +24,19 @@ import xbmcvfs
 from ..abstract_context import AbstractContext
 from .xbmc_plugin_settings import XbmcPluginSettings
 from .xbmc_context_ui import XbmcContextUI
-from .xbmc_system_version import XbmcSystemVersion
 from .xbmc_playlist import XbmcPlaylist
 from .xbmc_player import XbmcPlayer
 from ... import utils
 
 
 class XbmcContext(AbstractContext):
-    def __init__(self, path='/', params=None, plugin_name=u'', plugin_id=u'', override=True):
+    def __init__(self, path='/', params=None, plugin_name='', plugin_id='', override=True):
         AbstractContext.__init__(self, path, params, plugin_name, plugin_id)
 
         if plugin_id:
             self._addon = xbmcaddon.Addon(id=plugin_id)
         else:
-            self._addon = xbmcaddon.Addon()
-
-        self._system_version = None
+            self._addon = xbmcaddon.Addon(id='plugin.video.youtube')
 
         """
         I don't know what xbmc/kodi is doing with a simple uri, but we have to extract the information from the
@@ -38,20 +46,20 @@ class XbmcContext(AbstractContext):
         # first the path of the uri
         if override:
             self._uri = sys.argv[0]
-            comps = urlparse.urlparse(self._uri)
-            self._path = urllib.unquote(comps.path).decode('utf-8')
+            comps = urllib.parse.urlparse(self._uri)
+            self._path = urllib.parse.unquote(comps.path)
 
             # after that try to get the params
             if len(sys.argv) > 2:
                 params = sys.argv[2][1:]
                 if len(params) > 0:
-                    self._uri = self._uri + '?' + params
+                    self._uri = '?'.join([self._uri, params])
 
                     self._params = {}
-                    params = dict(urlparse.parse_qsl(params))
+                    params = dict(urllib.parse.parse_qsl(params))
                     for _param in params:
                         item = params[_param]
-                        self._params[_param] = item.decode('utf-8')
+                        self._params[_param] = item
 
         self._ui = None
         self._video_playlist = None
@@ -68,11 +76,22 @@ class XbmcContext(AbstractContext):
         """
         Set the data path for this addon and create the folder
         """
-        self._data_path = xbmc.translatePath('special://profile/addon_data/%s' % self._plugin_id)
-        if isinstance(self._data_path, str):
-            self._data_path = self._data_path.decode('utf-8')
+        try:
+            self._data_path = xbmc.translatePath(self._addon.getAddonInfo('profile')).decode('utf-8')
+        except AttributeError:
+            self._data_path = xbmc.translatePath(self._addon.getAddonInfo('profile'))
+
         if not xbmcvfs.exists(self._data_path):
             xbmcvfs.mkdir(self._data_path)
+
+    def get_region(self):
+        pass  # implement from abstract
+
+    def addon(self):
+        return self._addon
+
+    def is_plugin_path(self, uri, uri_path):
+        return uri.startswith('plugin://%s/%s/' % (self.get_id(), uri_path))
 
     def format_date_short(self, date_obj):
         date_format = xbmc.getRegion('dateshort')
@@ -88,15 +107,14 @@ class XbmcContext(AbstractContext):
         if isinstance(_time_obj, datetime.time):
             _time_obj = datetime.time(_time_obj.hour, _time_obj.minute, _time_obj.second)
 
-        return _time_obj.strftime(time_format)
+        return _time_obj.strftime(time_format.replace("%H%H", "%H"))
 
     def get_language(self):
         """
         The xbmc.getLanguage() method is fucked up!!! We always return 'en-US' for now
         """
-        return 'en-US'
 
-        """
+        '''
         if self.get_system_version().get_release_name() == 'Frodo':
             return 'en-US'
 
@@ -108,13 +126,9 @@ class XbmcContext(AbstractContext):
         except Exception, ex:
             self.log_error('Failed to get system language (%s)', ex.__str__())
             return 'en-US'
-        """
+        '''
 
-    def get_system_version(self):
-        if not self._system_version:
-            self._system_version = XbmcSystemVersion(version='', releasename='', appname='')
-
-        return self._system_version
+        return 'en-US'
 
     def get_video_playlist(self):
         if not self._video_playlist:
@@ -146,6 +160,13 @@ class XbmcContext(AbstractContext):
 
     def get_data_path(self):
         return self._data_path
+
+    def get_debug_path(self):
+        if not self._debug_path:
+            self._debug_path = os.path.join(self.get_data_path(), 'debug')
+            if not xbmcvfs.exists(self._debug_path):
+                xbmcvfs.mkdir(self._debug_path)
+        return self._debug_path
 
     def get_native_path(self):
         return self._native_path
@@ -219,7 +240,7 @@ class XbmcContext(AbstractContext):
             message = response['error']['message']
             code = response['error']['code']
             error = 'Requested |%s| received error |%s| and code: |%s|' % (rpc_request, message, code)
-            xbmc.log(error, xbmc.LOGDEBUG)
+            self.log_debug(error)
             return False
 
     def set_addon_enabled(self, addon_id, enabled=True):
@@ -236,5 +257,61 @@ class XbmcContext(AbstractContext):
             message = response['error']['message']
             code = response['error']['code']
             error = 'Requested |%s| received error |%s| and code: |%s|' % (rpc_request, message, code)
-            xbmc.log(error, xbmc.LOGDEBUG)
+            self.log_debug(error)
             return False
+
+    def send_notification(self, method, data):
+        data = json.dumps(data)
+        self.log_debug('send_notification: |%s| -> |%s|' % (method, data))
+        data = '\\"[\\"%s\\"]\\"' % urllib.parse.quote(data)
+        self.execute('NotifyAll(plugin.video.youtube,%s,%s)' % (method, data))
+
+    def use_inputstream_adaptive(self):
+        addon_enabled = self.addon_enabled('inputstream.adaptive')
+        if self._settings.use_dash() and not addon_enabled:
+            if self.get_ui().on_yes_no_input(self.get_name(), self.localize(30579)):
+                use_dash = self.set_addon_enabled('inputstream.adaptive')
+            else:
+                use_dash = False
+        elif self._settings.use_dash() and addon_enabled:
+            use_dash = True
+        else:
+            use_dash = False
+        return use_dash
+
+    def inputstream_adaptive_capabilities(self, capability=None):
+        # return a list inputstream.adaptive capabilities, if capability set return version required
+
+        capabilities = []
+
+        use_dash = self.use_inputstream_adaptive()
+        if not use_dash and capability is not None:
+            return None
+        if not use_dash and capability is None:
+            return capabilities
+
+        try:
+            inputstream_version = xbmcaddon.Addon('inputstream.adaptive').getAddonInfo('version')
+        except RuntimeError:
+            return capabilities
+
+        capability_map = {
+            'live': '2.0.12',
+            'drm': '2.2.12',
+            'vp9': None,
+            'vp9.2': None,
+            'vorbis': None,
+            'opus': None,
+            'av1': None,
+        }
+
+        if capability is None:
+            ia_loose_version = utils.loose_version(inputstream_version)
+
+            for key in list(capability_map.keys()):
+                if capability_map[key] and (ia_loose_version >= utils.loose_version(capability_map[key])):
+                    capabilities.append(key)
+
+            return capabilities
+        else:
+            return capability_map[capability] if capability_map.get(capability) else None

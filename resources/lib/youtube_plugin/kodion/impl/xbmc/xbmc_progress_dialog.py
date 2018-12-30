@@ -1,4 +1,14 @@
-__author__ = 'bromix'
+# -*- coding: utf-8 -*-
+"""
+
+    Copyright (C) 2014-2016 bromix (plugin.video.youtube)
+    Copyright (C) 2016-2018 plugin.video.youtube
+
+    SPDX-License-Identifier: GPL-2.0-only
+    See LICENSES/GPL-2.0-only for more information.
+"""
+
+from six import string_types
 
 import xbmcgui
 from ..abstract_progress_dialog import AbstractProgressDialog
@@ -21,9 +31,9 @@ class XbmcProgressDialog(AbstractProgressDialog):
 
     def update(self, steps=1, text=None):
         self._position += steps
-        position = int(float(100.0 / self._total) * self._position)
+        position = int(float((100.0 // self._total)) * self._position)
 
-        if isinstance(text, basestring):
+        if isinstance(text, string_types):
             self._dialog.update(position, text)
         else:
             self._dialog.update(position)

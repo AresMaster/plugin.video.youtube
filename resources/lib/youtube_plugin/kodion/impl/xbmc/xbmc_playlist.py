@@ -1,4 +1,12 @@
-__author__ = 'bromix'
+# -*- coding: utf-8 -*-
+"""
+
+    Copyright (C) 2014-2016 bromix (plugin.video.youtube)
+    Copyright (C) 2016-2018 plugin.video.youtube
+
+    SPDX-License-Identifier: GPL-2.0-only
+    See LICENSES/GPL-2.0-only for more information.
+"""
 
 import xbmc
 from ..abstract_playlist import AbstractPlaylist
@@ -20,7 +28,7 @@ class XbmcPlaylist(AbstractPlaylist):
         self._playlist.clear()
 
     def add(self, base_item):
-        item = xbmc_items.to_item(self._context, base_item)
+        item = xbmc_items.to_video_item(self._context, base_item)
         if item:
             self._playlist.add(base_item.get_uri(), listitem=item)
 

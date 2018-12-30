@@ -1,4 +1,12 @@
-__author__ = 'bromix'
+# -*- coding: utf-8 -*-
+"""
+
+    Copyright (C) 2014-2016 bromix (plugin.video.youtube)
+    Copyright (C) 2016-2018 plugin.video.youtube
+
+    SPDX-License-Identifier: GPL-2.0-only
+    See LICENSES/GPL-2.0-only for more information.
+"""
 
 from .directory_item import DirectoryItem
 from .. import constants
@@ -8,7 +16,7 @@ class NextPageItem(DirectoryItem):
     def __init__(self, context, current_page=1, image=None, fanart=None):
         new_params = {}
         new_params.update(context.get_params())
-        new_params['page'] = unicode(current_page + 1)
+        new_params['page'] = str(current_page + 1)
         name = context.localize(constants.localize.NEXT_PAGE, 'Next Page')
         if name.find('%d') != -1:
             name %= current_page + 1

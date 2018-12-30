@@ -1,4 +1,12 @@
-__author__ = 'bromix'
+# -*- coding: utf-8 -*-
+"""
+
+    Copyright (C) 2014-2016 bromix (plugin.video.youtube)
+    Copyright (C) 2016-2018 plugin.video.youtube
+
+    SPDX-License-Identifier: GPL-2.0-only
+    See LICENSES/GPL-2.0-only for more information.
+"""
 
 from ... import utils
 from ...items import *
@@ -18,7 +26,7 @@ def _process_int_value(info_labels, name, param):
 
 def _process_string_value(info_labels, name, param):
     if param is not None:
-        info_labels[name] = unicode(param)
+        info_labels[name] = param
 
 
 def _process_audio_rating(info_labels, param):
@@ -29,7 +37,7 @@ def _process_audio_rating(info_labels, param):
         if rating < 0:
             rating = 0
 
-        info_labels['rating'] = unicode(rating)
+        info_labels['rating'] = rating
 
 
 def _process_video_dateadded(info_labels, param):
@@ -37,7 +45,7 @@ def _process_video_dateadded(info_labels, param):
         info_labels['dateadded'] = param
 
 
-def _process_video_duration(context, info_labels, param):
+def _process_video_duration(info_labels, param):
     if param is not None:
         info_labels['duration'] = '%d' % param
 
@@ -68,7 +76,12 @@ def _process_mediatype(info_labels, name, param):
     info_labels[name] = param
 
 
-def create_from_item(context, base_item):
+def _process_last_played(info_labels, name, param):
+    if param:
+        info_labels[name] = param.strftime('%Y-%m-%d %H:%M:%S')
+
+
+def create_from_item(base_item):
     info_labels = {}
 
     # 'date' = '09.03.1982'
@@ -116,7 +129,9 @@ def create_from_item(context, base_item):
 
         # TODO: starting with Helix this could be seconds
         # 'duration' = '3:18' (string)
-        _process_video_duration(context, info_labels, base_item.get_duration())
+        _process_video_duration(info_labels, base_item.get_duration())
+
+        _process_last_played(info_labels, 'lastplayed', base_item.get_last_played())
 
         # 'rating' = 4.5 (float)
         _process_video_rating(info_labels, base_item.get_rating())

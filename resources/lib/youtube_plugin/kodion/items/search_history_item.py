@@ -1,16 +1,27 @@
-__author__ = 'bromix'
+# -*- coding: utf-8 -*-
+"""
+
+    Copyright (C) 2014-2016 bromix (plugin.video.youtube)
+    Copyright (C) 2016-2018 plugin.video.youtube
+
+    SPDX-License-Identifier: GPL-2.0-only
+    See LICENSES/GPL-2.0-only for more information.
+"""
 
 from .directory_item import DirectoryItem
 from .. import constants
 
 
 class SearchHistoryItem(DirectoryItem):
-    def __init__(self, context, query, image=None, fanart=None):
+    def __init__(self, context, query, image=None, fanart=None, location=False):
         if image is None:
             image = context.create_resource_path('media/search.png')
 
-        DirectoryItem.__init__(self, query, context.create_uri([constants.paths.SEARCH, 'query'], {'q': query}),
-                               image=image)
+        params = {'q': query}
+        if location:
+            params['location'] = location
+
+        DirectoryItem.__init__(self, query, context.create_uri([constants.paths.SEARCH, 'query'], params=params), image=image)
         if fanart:
             self.set_fanart(fanart)
         else:

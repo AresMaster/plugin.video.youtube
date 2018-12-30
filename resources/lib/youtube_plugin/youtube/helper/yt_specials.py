@@ -1,4 +1,12 @@
-__author__ = 'bromix'
+# -*- coding: utf-8 -*-
+"""
+
+    Copyright (C) 2014-2016 bromix (plugin.video.youtube)
+    Copyright (C) 2016-2018 plugin.video.youtube
+
+    SPDX-License-Identifier: GPL-2.0-only
+    See LICENSES/GPL-2.0-only for more information.
+"""
 
 from ... import kodion
 from ...kodion.items import DirectoryItem, UriItem
@@ -6,7 +14,7 @@ from ...youtube.helper import v3, tv, extract_urls, UrlResolver, UrlToItemConver
 from . import utils
 
 
-def _process_related_videos(provider, context, re_match):
+def _process_related_videos(provider, context):
     result = []
 
     provider.set_content_type(context, kodion.constants.content_type.VIDEOS)
@@ -22,7 +30,7 @@ def _process_related_videos(provider, context, re_match):
     return result
 
 
-def _process_recommendations(provider, context, re_match):
+def _process_recommendations(provider, context):
     provider.set_content_type(context, kodion.constants.content_type.VIDEOS)
     result = []
 
@@ -34,7 +42,7 @@ def _process_recommendations(provider, context, re_match):
     return result
 
 
-def _process_popular_right_now(provider, context, re_match):
+def _process_popular_right_now(provider, context):
     provider.set_content_type(context, kodion.constants.content_type.VIDEOS)
 
     result = []
@@ -48,18 +56,20 @@ def _process_popular_right_now(provider, context, re_match):
     return result
 
 
-def _process_browse_channels(provider, context, re_match):
+def _process_browse_channels(provider, context):
     result = []
 
-    page_token = context.get_param('page_token', '')
+    # page_token = context.get_param('page_token', '')
     guide_id = context.get_param('guide_id', '')
+    client = provider.get_client(context)
+
     if guide_id:
-        json_data = provider.get_client(context).get_guide_category(guide_id)
+        json_data = client.get_guide_category(guide_id)
         if not v3.handle_error(provider, context, json_data):
             return False
         result.extend(v3.response_to_items(provider, context, json_data))
     else:
-        json_data = provider.get_client(context).get_guide_categories()
+        json_data = context.get_function_cache().get(kodion.utils.FunctionCache.ONE_MONTH, client.get_guide_categories)
         if not v3.handle_error(provider, context, json_data):
             return False
         result.extend(v3.response_to_items(provider, context, json_data))
@@ -67,7 +77,7 @@ def _process_browse_channels(provider, context, re_match):
     return result
 
 
-def _process_disliked_videos(provider, context, re_match):
+def _process_disliked_videos(provider, context):
     provider.set_content_type(context, kodion.constants.content_type.VIDEOS)
     result = []
 
@@ -79,7 +89,7 @@ def _process_disliked_videos(provider, context, re_match):
     return result
 
 
-def _process_live_events(provider, context, re_match):
+def _process_live_events(provider, context, event_type='live'):
     def _sort(x):
         return x.get_aired()
 
@@ -89,7 +99,9 @@ def _process_live_events(provider, context, re_match):
 
     # TODO: cache result
     page_token = context.get_param('page_token', '')
-    json_data = provider.get_client(context).get_live_events(event_type='live', page_token=page_token)
+    location = str(context.get_param('location', False)).lower() == 'true'
+
+    json_data = provider.get_client(context).get_live_events(event_type=event_type, page_token=page_token, location=location)
     if not v3.handle_error(provider, context, json_data):
         return False
     result.extend(v3.response_to_items(provider, context, json_data, sort=_sort, reverse_sort=True))
@@ -97,16 +109,19 @@ def _process_live_events(provider, context, re_match):
     return result
 
 
-def _process_description_links(provider, context, re_match):
+def _process_description_links(provider, context):
     incognito = str(context.get_param('incognito', False)).lower() == 'true'
+    addon_id = context.get_param('addon_id', '')
 
     def _extract_urls(_video_id):
         provider.set_content_type(context, kodion.constants.content_type.VIDEOS)
+        url_resolver = UrlResolver(context)
 
         result = []
 
-        progress_dialog = context.get_ui().create_progress_dialog(
-            heading=context.localize(kodion.constants.localize.COMMON_PLEASE_WAIT), background=False)
+        progress_dialog = \
+            context.get_ui().create_progress_dialog(heading=context.localize(kodion.constants.localize.COMMON_PLEASE_WAIT),
+                                                    background=False)
 
         resource_manager = provider.get_resource_manager(context)
 
@@ -115,11 +130,10 @@ def _process_description_links(provider, context, re_match):
         snippet = yt_item['snippet']  # crash if not conform
         description = kodion.utils.strip_html_from_text(snippet['description'])
 
-        urls = extract_urls(description)
+        urls = context.get_function_cache().get(kodion.utils.FunctionCache.ONE_WEEK, extract_urls, description)
 
         progress_dialog.set_total(len(urls))
 
-        url_resolver = UrlResolver(context)
         res_urls = []
         for url in urls:
             context.log_debug('Resolving url "%s"' % url)
@@ -156,6 +170,8 @@ def _process_description_links(provider, context, re_match):
         item_params = {}
         if incognito:
             item_params.update({'incognito': incognito})
+        if addon_id:
+            item_params.update({'addon_id': addon_id})
 
         for channel_id in _channel_ids:
             item_uri = context.create_uri(['channel', channel_id], item_params)
@@ -165,7 +181,6 @@ def _process_description_links(provider, context, re_match):
 
         _channel_item_dict = {}
         utils.update_channel_infos(provider, context, _channel_id_dict, channel_items_dict=_channel_item_dict)
-        utils.update_fanarts(provider, context, _channel_item_dict)
 
         # clean up - remove empty entries
         _result = []
@@ -181,6 +196,8 @@ def _process_description_links(provider, context, re_match):
         item_params = {}
         if incognito:
             item_params.update({'incognito': incognito})
+        if addon_id:
+            item_params.update({'addon_id': addon_id})
 
         for playlist_id in _playlist_ids:
             item_uri = context.create_uri(['playlist', playlist_id], item_params)
@@ -222,7 +239,7 @@ def _process_description_links(provider, context, re_match):
     return False
 
 
-def _process_saved_playlists_tv(provider, context, re_match):
+def _process_saved_playlists_tv(provider, context):
     provider.set_content_type(context, kodion.constants.content_type.FILES)
 
     result = []
@@ -234,19 +251,31 @@ def _process_saved_playlists_tv(provider, context, re_match):
     return result
 
 
-def _process_watch_history_tv(provider, context, re_match):
+def _process_watch_history_tv(provider, context):
     provider.set_content_type(context, kodion.constants.content_type.VIDEOS)
 
     result = []
     next_page_token = context.get_param('next_page_token', '')
     offset = int(context.get_param('offset', 0))
     json_data = provider.get_client(context).get_watch_history(page_token=next_page_token, offset=offset)
-    result.extend(tv.watch_history_to_items(provider, context, json_data))
+    result.extend(tv.tv_videos_to_items(provider, context, json_data))
 
     return result
 
 
-def _process_new_uploaded_videos_tv(provider, context, re_match):
+def _process_purchases_tv(provider, context):
+    provider.set_content_type(context, kodion.constants.content_type.VIDEOS)
+
+    result = []
+    next_page_token = context.get_param('next_page_token', '')
+    offset = int(context.get_param('offset', 0))
+    json_data = provider.get_client(context).get_purchases(page_token=next_page_token, offset=offset)
+    result.extend(tv.tv_videos_to_items(provider, context, json_data))
+
+    return result
+
+
+def _process_new_uploaded_videos_tv(provider, context):
     provider.set_content_type(context, kodion.constants.content_type.VIDEOS)
 
     result = []
@@ -258,7 +287,7 @@ def _process_new_uploaded_videos_tv(provider, context, re_match):
     return result
 
 
-def _process_new_uploaded_videos_tv_filtered(provider, context, re_match):
+def _process_new_uploaded_videos_tv_filtered(provider, context):
     provider.set_content_type(context, kodion.constants.content_type.VIDEOS)
 
     result = []
@@ -270,35 +299,38 @@ def _process_new_uploaded_videos_tv_filtered(provider, context, re_match):
     return result
 
 
-def process(category, provider, context, re_match):
-    result = []
-
-    # we need a login
-    client = provider.get_client(context)
+def process(category, provider, context):
+    _ = provider.get_client(context)  # required for provider.is_logged_in()
     if not provider.is_logged_in() and category in ['new_uploaded_videos_tv', 'new_uploaded_videos_tv_filtered', 'disliked_videos']:
         return UriItem(context.create_uri(['sign', 'in']))
 
     if category == 'related_videos':
-        return _process_related_videos(provider, context, re_match)
+        return _process_related_videos(provider, context)
     elif category == 'popular_right_now':
-        return _process_popular_right_now(provider, context, re_match)
+        return _process_popular_right_now(provider, context)
     elif category == 'recommendations':
-        return _process_recommendations(provider, context, re_match)
+        return _process_recommendations(provider, context)
     elif category == 'browse_channels':
-        return _process_browse_channels(provider, context, re_match)
+        return _process_browse_channels(provider, context)
     elif category == 'watch_history_tv':
-        return _process_watch_history_tv(provider, context, re_match)
+        return _process_watch_history_tv(provider, context)
     elif category == 'new_uploaded_videos_tv':
-        return _process_new_uploaded_videos_tv(provider, context, re_match)
+        return _process_new_uploaded_videos_tv(provider, context)
     elif category == 'new_uploaded_videos_tv_filtered':
-        return _process_new_uploaded_videos_tv_filtered(provider, context, re_match)
+        return _process_new_uploaded_videos_tv_filtered(provider, context)
     elif category == 'saved_playlists':
-        return _process_saved_playlists_tv(provider, context, re_match)
+        return _process_saved_playlists_tv(provider, context)
+    elif category == 'purchases':
+        return _process_purchases_tv(provider, context)
     elif category == 'disliked_videos':
-        return _process_disliked_videos(provider, context, re_match)
+        return _process_disliked_videos(provider, context)
     elif category == 'live':
-        return _process_live_events(provider, context, re_match)
+        return _process_live_events(provider, context)
+    elif category == 'upcoming_live':
+        return _process_live_events(provider, context, event_type='upcoming')
+    elif category == 'completed_live':
+        return _process_live_events(provider, context, event_type='completed')
     elif category == 'description_links':
-        return _process_description_links(provider, context, re_match)
+        return _process_description_links(provider, context)
     else:
         raise kodion.KodionException("YouTube special category '%s' not found" % category)

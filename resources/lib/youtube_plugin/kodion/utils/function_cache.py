@@ -1,8 +1,18 @@
+# -*- coding: utf-8 -*-
+"""
+
+    Copyright (C) 2014-2016 bromix (plugin.video.youtube)
+    Copyright (C) 2016-2018 plugin.video.youtube
+
+    SPDX-License-Identifier: GPL-2.0-only
+    See LICENSES/GPL-2.0-only for more information.
+"""
+
 from functools import partial
 import hashlib
 import datetime
 
-from storage import Storage
+from .storage import Storage
 
 
 class FunctionCache(Storage):
@@ -12,7 +22,8 @@ class FunctionCache(Storage):
     ONE_WEEK = 7 * ONE_DAY
     ONE_MONTH = 4 * ONE_WEEK
 
-    def __init__(self, filename, max_file_size_kb=-1):
+    def __init__(self, filename, max_file_size_mb=5):
+        max_file_size_kb = max_file_size_mb * 1024
         Storage.__init__(self, filename, max_file_size_kb=max_file_size_kb)
 
         self._enabled = True
@@ -34,17 +45,18 @@ class FunctionCache(Storage):
         """
         self._enabled = False
 
-    def _create_id_from_func(self, partial_func):
+    @staticmethod
+    def _create_id_from_func(partial_func):
         """
         Creats an id from the given function
         :param partial_func:
         :return: id for the given function
         """
         m = hashlib.md5()
-        m.update(partial_func.func.__module__)
-        m.update(partial_func.func.__name__)
-        m.update(str(partial_func.args))
-        m.update(str(partial_func.keywords))
+        m.update(partial_func.func.__module__.encode('utf-8'))
+        m.update(partial_func.func.__name__.encode('utf-8'))
+        m.update(str(partial_func.args).encode('utf-8'))
+        m.update(str(partial_func.keywords).encode('utf-8'))
         return m.hexdigest()
 
     def _get_cached_data(self, partial_func):
@@ -68,7 +80,7 @@ class FunctionCache(Storage):
     def get(self, seconds, func, *args, **keywords):
         def _seconds_difference(_first, _last):
             _delta = _last - _first
-            return 24 * 60 * 60 * _delta.days + _delta.seconds + _delta.microseconds / 1000000.
+            return 24 * 60 * 60 * _delta.days + _delta.seconds + (_delta.microseconds // 1000000.)
 
         """
         Returns the cached data of the given function.
@@ -102,3 +114,8 @@ class FunctionCache(Storage):
             self._set(cache_id, cached_data)
 
         return cached_data
+
+    def _optimize_item_count(self):
+        # override method from resources/lib/youtube_plugin/kodion/utils/storage.py
+        # for function cache do not optimize by item count, using database size.
+        pass

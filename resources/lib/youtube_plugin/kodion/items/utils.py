@@ -1,6 +1,16 @@
-import json
+# -*- coding: utf-8 -*-
+"""
 
-__author__ = 'bromix'
+    Copyright (C) 2014-2016 bromix (plugin.video.youtube)
+    Copyright (C) 2016-2018 plugin.video.youtube
+
+    SPDX-License-Identifier: GPL-2.0-only
+    See LICENSES/GPL-2.0-only for more information.
+"""
+
+from six import string_types
+
+import json
 
 from .video_item import VideoItem
 from .directory_item import DirectoryItem
@@ -38,7 +48,7 @@ def from_json(json_data):
 
         return item
 
-    if isinstance(json_data, basestring):
+    if isinstance(json_data, string_types):
         json_data = json.loads(json_data)
     return _from_json(json_data)
 

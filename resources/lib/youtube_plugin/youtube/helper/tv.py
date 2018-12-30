@@ -1,9 +1,18 @@
-__author__ = 'bromix'
+# -*- coding: utf-8 -*-
+"""
+
+    Copyright (C) 2014-2016 bromix (plugin.video.youtube)
+    Copyright (C) 2016-2018 plugin.video.youtube
+
+    SPDX-License-Identifier: GPL-2.0-only
+    See LICENSES/GPL-2.0-only for more information.
+"""
+
+from six import PY2
 
 from ... import kodion
 from ...youtube.helper import utils
 from ...kodion.items.video_item import VideoItem
-import yt_context_menu
 
 
 def my_subscriptions_to_items(provider, context, json_data, do_filter=False):
@@ -25,6 +34,8 @@ def my_subscriptions_to_items(provider, context, json_data, do_filter=False):
     for item in items:
         channel = item['channel'].lower()
         channel = channel.replace(',', '')
+        if PY2:
+            channel = channel.encode('utf-8', 'ignore')
         if not do_filter or (do_filter and (not black_list) and (channel in filter_list)) or \
                 (do_filter and black_list and (channel not in filter_list)):
             video_id = item['id']
@@ -39,8 +50,10 @@ def my_subscriptions_to_items(provider, context, json_data, do_filter=False):
 
             video_id_dict[video_id] = video_item
 
+    use_play_data = not incognito and context.get_settings().use_playback_history()
+
     channel_item_dict = {}
-    utils.update_video_infos(provider, context, video_id_dict, channel_items_dict=channel_item_dict)
+    utils.update_video_infos(provider, context, video_id_dict, channel_items_dict=channel_item_dict, use_play_data=use_play_data)
     utils.update_fanarts(provider, context, channel_item_dict)
 
     # next page
@@ -60,7 +73,7 @@ def my_subscriptions_to_items(provider, context, json_data, do_filter=False):
     return result
 
 
-def watch_history_to_items(provider, context, json_data):
+def tv_videos_to_items(provider, context, json_data):
     result = []
     video_id_dict = {}
 
@@ -81,8 +94,10 @@ def watch_history_to_items(provider, context, json_data):
 
         video_id_dict[video_id] = video_item
 
+    use_play_data = not incognito and context.get_settings().use_playback_history()
+
     channel_item_dict = {}
-    utils.update_video_infos(provider, context, video_id_dict, channel_items_dict=channel_item_dict)
+    utils.update_video_infos(provider, context, video_id_dict, channel_items_dict=channel_item_dict, use_play_data=use_play_data)
     utils.update_fanarts(provider, context, channel_item_dict)
 
     # next page

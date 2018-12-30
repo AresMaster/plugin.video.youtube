@@ -1,6 +1,13 @@
-__author__ = 'bromix'
+# -*- coding: utf-8 -*-
+"""
 
-import xbmc
+    Copyright (C) 2014-2016 bromix (plugin.video.youtube)
+    Copyright (C) 2016-2018 plugin.video.youtube
+
+    SPDX-License-Identifier: GPL-2.0-only
+    See LICENSES/GPL-2.0-only for more information.
+"""
+
 import xbmcgui
 import xbmcplugin
 
@@ -19,10 +26,10 @@ class XbmcRunner(AbstractProviderRunner):
         self.settings = None
 
     def run(self, provider, context=None):
-        results = None
+
         try:
             results = provider.navigate(context)
-        except KodionException, ex:
+        except KodionException as ex:
             if provider.handle_exception(context, ex):
                 context.log_error(ex.__str__())
                 xbmcgui.Dialog().ok("Exception in ContentProvider", ex.__str__())
@@ -61,7 +68,7 @@ class XbmcRunner(AbstractProviderRunner):
             pass
 
     def _set_resolved_url(self, context, base_item, succeeded=True):
-        item = xbmc_items.to_item(context, base_item)
+        item = xbmc_items.to_playback_item(context, base_item)
         item.setPath(base_item.get_uri())
         xbmcplugin.setResolvedUrl(self.handle, succeeded=succeeded, listitem=item)
 
@@ -78,47 +85,71 @@ class XbmcRunner(AbstractProviderRunner):
         """
 
     def _add_directory(self, context, directory_item, item_count=0):
-        item = xbmcgui.ListItem(label=directory_item.get_name(),
-                                iconImage=u'DefaultFolder.png',
-                                thumbnailImage=directory_item.get_image())
+        major_version = context.get_system_version().get_version()[0]
+        if major_version > 17:
+            item = xbmcgui.ListItem(label=directory_item.get_name(),
+                                    iconImage=u'DefaultFolder.png',
+                                    thumbnailImage=directory_item.get_image(),
+                                    offscreen=True)
+        else:
+            item = xbmcgui.ListItem(label=directory_item.get_name(),
+                                    iconImage=u'DefaultFolder.png',
+                                    thumbnailImage=directory_item.get_image())
 
         # only set fanart is enabled
 
         if directory_item.get_fanart() and self.settings.show_fanart():
-            item.setProperty(u'fanart_image', directory_item.get_fanart())
+            item.setProperty('fanart_image', directory_item.get_fanart())
         if directory_item.get_context_menu() is not None:
             item.addContextMenuItems(directory_item.get_context_menu(),
                                      replaceItems=directory_item.replace_context_menu())
 
-        item.setInfo(type=u'video', infoLabels=info_labels.create_from_item(context, directory_item))
+        item.setInfo(type='video', infoLabels=info_labels.create_from_item(directory_item))
+        item.setPath(directory_item.get_uri())
+
+        is_folder = True
+        if directory_item.is_action():
+            is_folder = False
+            item.setProperty('isPlayable', 'false')
+
+        if directory_item.get_channel_subscription_id():  # make channel_subscription_id property available for keymapping
+            item.setProperty('channel_subscription_id', directory_item.get_channel_subscription_id())
 
         xbmcplugin.addDirectoryItem(handle=self.handle,
                                     url=directory_item.get_uri(),
                                     listitem=item,
-                                    isFolder=True,
+                                    isFolder=is_folder,
                                     totalItems=item_count)
 
     def _add_video(self, context, video_item, item_count=0):
         item = xbmc_items.to_video_item(context, video_item)
-
+        item.setPath(video_item.get_uri())
         xbmcplugin.addDirectoryItem(handle=self.handle,
                                     url=video_item.get_uri(),
                                     listitem=item,
                                     totalItems=item_count)
 
     def _add_image(self, context, image_item, item_count):
-        item = xbmcgui.ListItem(label=image_item.get_name(),
-                                iconImage=u'DefaultPicture.png',
-                                thumbnailImage=image_item.get_image())
+        major_version = context.get_system_version().get_version()[0]
+        if major_version > 17:
+            item = xbmcgui.ListItem(label=image_item.get_name(),
+                                    iconImage=u'DefaultPicture.png',
+                                    thumbnailImage=image_item.get_image(),
+                                    offscreen=True)
+        else:
+            item = xbmcgui.ListItem(label=image_item.get_name(),
+                                    iconImage=u'DefaultPicture.png',
+                                    thumbnailImage=image_item.get_image())
 
         # only set fanart is enabled
         if image_item.get_fanart() and self.settings.show_fanart():
-            item.setProperty(u'fanart_image', image_item.get_fanart())
+            item.setProperty('fanart_image', image_item.get_fanart())
         if image_item.get_context_menu() is not None:
             item.addContextMenuItems(image_item.get_context_menu(), replaceItems=image_item.replace_context_menu())
 
-        item.setInfo(type=u'picture', infoLabels=info_labels.create_from_item(context, image_item))
+        item.setInfo(type='picture', infoLabels=info_labels.create_from_item(image_item))
 
+        item.setPath(image_item.get_uri())
         xbmcplugin.addDirectoryItem(handle=self.handle,
                                     url=image_item.get_uri(),
                                     listitem=item,
@@ -126,7 +157,7 @@ class XbmcRunner(AbstractProviderRunner):
 
     def _add_audio(self, context, audio_item, item_count):
         item = xbmc_items.to_audio_item(context, audio_item)
-
+        item.setPath(audio_item.get_uri())
         xbmcplugin.addDirectoryItem(handle=self.handle,
                                     url=audio_item.get_uri(),
                                     listitem=item,
